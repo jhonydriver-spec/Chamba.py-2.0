@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChambaPy</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Arial, sans-serif; }
+body { background:#f8fafc; padding-bottom:70px; }
+header { background:#2563eb; color:white; padding:15px; text-align:center; }
+.container { padding:15px; max-width:750px; margin:0 auto; }
+.card { background:white; padding:15px; border-radius:12px; margin-bottom:12px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+input, textarea, select { width:100%; padding:12px; margin:8px 0; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; }
+button { width:100%; padding:12px; background:#2563eb; border:none; border-radius:8px; color:white; font-weight:bold; cursor:pointer; margin-top:8px; }
+.btn-green { background:#22c55e; }
+.btn-orange { background:#f59e0b; }
+.btn-red { background:#ef4444; }
+.btn-ghost { background:#e2e8f0; color:#1e293b; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.grid img,.grid video { width:100%; height:150px; object-fit:cover; border-radius:8px; }
+.hidden { display:none; }
+.badge { padding:3px 8px; border-radius:12px; font-size:12px; color:white; }
+.badge-star { background:#f59e0b; }
+.tab-nav { position:fixed; bottom:0; left:0; width:100%; background:white; display:flex; border-top:1px solid #e2e8f0; }
+.tab-btn { flex:1; padding:12px; background:none; border:none; cursor:pointer; }
+.tab-btn.active { color:#2563eb; font-weight:bold; }
+.pin-input { text-align:center; letter-spacing:8px; font-size:22px; }
+details { margin-top:10px; }
+summary { cursor:pointer; color:#2563eb; }
+.admin-box { border-left:4px solid #ef4444; }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <header><h1>ChambaPy</h1><small>Catálogo de trabajadores</small></header>
+  <div class="container">
+    <div class="card">
+      <h3>Entrar o Registrarse</h3>
+      <input id="username" placeholder="Usuario sin espacios">
+      <input id="telefono" placeholder="0981 123 456" type="tel">
+      <input id="pin" type="password" maxlength="4" class="pin-input" placeholder="••••" inputmode="numeric">
+      <small>PIN de 4 dígitos. Guárdalo bien.</small>
+      <button onclick="login()">Continuar</button>
+    </div>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <header>
+    <h1><span id="user-name"></span></h1>
+    <small id="user-phone"></small>
+  </header>
+
+  <div class="container">
+    <div id="tab-buscar">
+      <input type="text" id="buscar" placeholder="Buscar: plomero, electricista, Luque..." oninput="renderCatalogo()">
+      <select id="filtro-zona" onchange="renderCatalogo()">
+        <option value="">Todas las zonas</option>
+      </select>
+      <div id="catalogo"></div>
+    </div>
+
+    <div id="tab-perfil" class="hidden">
+      <div class="card">
+        <h3>Mi Perfil</h3>
+        <input id="mi-oficio" placeholder="Tu oficio">
+        <input id="mi-zona" placeholder="Tu zona">
+        <textarea id="mi-desc" placeholder="Describe tu trabajo" rows="3"></textarea>
+        <button onclick="guardarPerfil()">Guardar perfil</button>
+        <p style="margin-top:10px;"><strong>Créditos:</strong> <span id="mi-creditos">0</span></p>
+        <button class="btn-orange" onclick="activarDestacado()">Activar 30 días destacado - 1 crédito</button>
+      </div>
+
+      <div class="card">
+        <h3>Mis Trabajos</h3>
+        <input type="file" id="archivo" accept="image/*,video/*" multiple>
+        <button onclick="subirTrabajo()">Subir foto/video</button>
+        <div id="mis-trabajos" class="grid" style="margin-top:10px;"></div>
+      </div>
+
+      <button class="btn-ghost" onclick="cerrarSesion()">Cerrar sesión</button>
+    </div>
+  </div>
+
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="cambiarTab('buscar', event)">Buscar</button>
+    <button class="tab-btn" onclick="cambiarTab('perfil', event)">Mi Perfil</button>
+  </div>
+</div>
+
+<div id="admin" class="hidden">
+  <header style="background:#ef4444;"><h1>Panel Admin</h1></header>
+  <div class="container">
+    <input type="password" id="admin-pin" placeholder="PIN admin">
+    <button onclick="entrarAdmin()">Entrar</button>
+    <div id="admin-contenido" class="hidden"></div>
+  </div>
+</div>
+
+<script>
+// ===== CONFIG =====
+const ADMIN_PIN = "RealMadrid2026";
+const NUMERO_WHATSAPP = "0976544936";
+
+const ZONAS = [
+  "Asunción",
+  "Lambaré",
+  "Luque",
+  "San Lorenzo",
+  "Capiatá",
+  "Fernando de la Mora",
+  "Limpio",
+  "Mariano Roque Alonso",
+  "Nemby",
+  "Ñemby",
+  "Villarrica",
+  "Caaguazú",
+  "Coronel Oviedo",
+  "Salto del Guairá",
+  "Encarnación",
+  "Oberá",
+  "Puerto Iguazú",
+  "Concepción",
+  "Caazapá",
+  "Pedro Juan Caballero",
+  "Ciudad del Este",
+  "Foz de Iguazú",
+  "Filadelfia",
+  "Posadas",
+  "Pilar",
+  "Iguazú",
+  "Alto Paraná",
+  "Itapúa",
+  "Guairá",
+  "Canindeyú",
+  "Amambay",
+  "San Juan Bautista",
+  "Villarrica",
+  "Caaguazú",
+  "Coronel Oviedo",
+  "Villarrica",
+  "Caaguazú",
+  "Coronel Oviedo",
+  "Salto del Guairá",
+  "Encarnación"
+];
+
+// ===== DATOS =====
+let usuarios = JSON.parse(localStorage.getItem('chamba_usuarios')) || [];
+let sesion = JSON.parse(localStorage.getItem('chamba_sesion')) || null;
+
+// Inicializar zonas en el select
+function inicializarZonas() {
+  let select = document.getElementById('filtro-zona');
+  ZONAS.forEach(zona => {
+    let option = document.createElement('option');
+    option.value = zona;
+    option.textContent = zona;
+    select.appendChild(option);
+  });
+}
+
+limpiarDestacados();
+inicializarZonas();
+if (sesion) mostrarApp();
+
+// ===== LOGIN =====
+function login() {
+  let user = document.getElementById('username').value.trim().toLowerCase();
+  let tel = document.getElementById('telefono').value.trim();
+  let pin = document.getElementById('pin').value.trim();
+
+  if (!user ||!tel || pin.length!==4) return alert('Completa todo. PIN debe tener 4 dígitos');
+
+  let existente = usuarios.find(u => u.username === user);
+  if (existente) {
+    if (existente.pin!== pin) return alert('PIN incorrecto');
+    sesion = existente;
+  } else {
+    sesion = {
+      id: 'u_' + Date.now(),
+      username: user,
+      telefono: tel,
+      pin: pin,
+      oficio: '', zona: '', descripcion: '',
+      trabajos: [], reseñas: [], rating: 0,
+      creditos: 0, destacado: false, destacado_hasta: null,
+      baneado: false
+    };
+    usuarios.push(sesion);
+  }
+  guardarDatos();
+  mostrarApp();
+}
+
+function mostrarApp() {
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('user-name').textContent = sesion.username;
+  document.getElementById('user-phone').textContent = sesion.telefono;
+  document.getElementById('mi-oficio').value = sesion.oficio;
+  document.getElementById('mi-zona').value = sesion.zona;
+  document.getElementById('mi-desc').value = sesion.descripcion;
+  document.getElementById('mi-creditos').textContent = sesion.creditos;
+  renderCatalogo();
+  renderMisTrabajos();
+}
+
+function guardarPerfil() {
+  sesion.oficio = document.getElementById('mi-oficio').value;
+  sesion.zona = document.getElementById('mi-zona').value;
+  sesion.descripcion = document.getElementById('mi-desc').value;
+  actualizarUsuario();
+  alert('Perfil guardado');
+}
+
+function subirTrabajo() {
+  let archivo = document.getElementById('archivo').files[0];
+  if (!archivo) return;
+  let reader = new FileReader();
+  reader.onload = function(e) {
+    sesion.trabajos.push({url:e.target.result, tipo:archivo.type.startsWith('video')?'video':'imagen'});
+    actualizarUsuario();
+    renderMisTrabajos();
+  };
+  reader.readAsDataURL(archivo);
+}
+
+function renderMisTrabajos() {
+  document.getElementById('mis-trabajos').innerHTML = sesion.trabajos.map(t =>
+    t.tipo==='video'? `<video src="${t.url}" controls></video>` : `<img src="${t.url}">`
+  ).join('');
+}
+
+// ===== CATÁLOGO =====
+function renderCatalogo() {
+  let filtro = document.getElementById('buscar').value.toLowerCase();
+  let zona = document.getElementById('filtro-zona').value;
+
+  let filtrados = usuarios.filter(u =>
+  !u.baneado && u.oficio &&
+    (u.oficio.toLowerCase().includes(filtro) || u.zona.toLowerCase().includes(filtro) || u.username.includes(filtro)) &&
+    (zona === '' || u.zona === zona)
+  ).sort((a,b) => {
+    if (a.destacado &&!b.destacado) return -1;
+    return b.rating - a.rating;
+  });
+
+  document.getElementById('catalogo').innerHTML = filtrados.map(u => `
+    <div class="card">
+      <h3>${u.username}
+        ${u.destacado? '<span class="badge badge-star">★ Destacado</span>' : ''}
+      </h3>
+      <p><strong>${u.oficio}</strong> - ${u.zona}</p>
+      <p>⭐ ${u.rating.toFixed(1)} (${u.reseñas.length} reseñas)</p>
+      <p>${u.descripcion}</p>
+      <div class="grid">${u.trabajos.slice(0,4).map(t =>
+        t.tipo==='video'? `<video src="${t.url}" controls></video>` : `<img src="${t.url}">`
+      ).join('')}</div>
+      <a href="https://wa.me/595${u.telefono.replace(/\D/g,'')}" class="btn-green" style="text-decoration:none; display:block; text-align:center; padding:12px; border-radius:8px;">Escribir a WhatsApp</a>
+
+      <details>
+        <summary>Dejar reseña/queja</summary>
+        <select id="stars-${u.id}">
+          <option value="5">⭐ Excelente</option>
+          <option value="4">⭐ Bueno</option>
+          <option value="3">⭐ Regular</option>
+          <option value="2">⭐ Malo</option>
+          <option value="1">⭐ Muy malo</option>
+        </select>
+        <textarea id="coment-${u.id}" placeholder="Comentario o queja" rows="2"></textarea>
+        <button onclick="dejarResena('${u.id}')">Enviar</button>
+      </details>
+    </div>
+  `).join('');
+}
+
+function dejarResena(id) {
+  if (!sesion) return alert('Inicia sesión primero');
+  let stars = parseInt(document.getElementById(`stars-${id}`).value);
+  let coment = document.getElementById(`coment-${id}`).value;
+  if (!coment) return alert('Escribe un comentario');
+
+  let u = usuarios.find(x => x.id === id);
+  u.reseñas.push({de: sesion.username, stars, coment, fecha: new Date().toISOString()});
+  u.rating = u.reseñas.reduce((sum,r)=>sum+r.stars,0)/u.reseñas.length;
+  guardarDatos();
+  renderCatalogo();
+  alert('Reseña enviada');
+}
+
+// ===== CRÉDITOS Y DESTACADO =====
+function activarDestacado() {
+  if (sesion.creditos <= 0) {
+    alert(`No tenés créditos. Paga Gs 5.000 por Tigo Money ${NUMERO_WHATSAPP} y envía captura a WhatsApp para que te cargue.`);
+    return;
+  }
+  sesion.creditos--;
+  let fecha = new Date();
+  fecha.setDate(fecha.getDate() + 30);
+  sesion.destacado = true;
+  sesion.destacado_hasta = fecha.toISOString();
+  actualizarUsuario();
+  alert('Destacado activado 30 días');
+  mostrarApp();
+}
+
+function limpiarDestacados() {
+  let ahora = new Date().toISOString();
+  usuarios.forEach(u => {
+    if (u.destacado && u.destacado_hasta < ahora) u.destacado = false;
+  });
+  guardarDatos();
+}
+
+// ===== ADMIN =====
+function entrarAdmin() {
+  if (document.getElementById('admin-pin').value!== ADMIN_PIN) return alert('PIN incorrecto');
+  document.getElementById('admin-contenido').classList.remove('hidden');
+  renderAdmin();
+}
+
+function renderAdmin() {
+  document.getElementById('admin-contenido').innerHTML = usuarios.map(u => `
+    <div class="card admin-box">
+      <h4>${u.username} - ${u.oficio || 'Sin oficio'}</h4>
+      <p>Tel: ${u.telefono} | Zona: ${u.zona} | Créditos: ${u.creditos}</p>
+      <p>Rating: ${u.rating.toFixed(1)} | Destacado: ${u.destacado? 'Sí' : 'No'}</p>
+      <button class="btn-green" onclick="sumarCredito('${u.id}',1)">+1 Crédito</button>
+      <button class="btn-orange" onclick="sumarCredito('${u.id}',3)">+3 Créditos</button>
+      <button class="btn-ghost" onclick="toggleBan('${u.id}')">${u.baneado? 'Desbanear' : 'Banear'}</button>
+      <button class="btn-red" onclick="borrarUsuario('${u.id}')">Borrar perfil</button>
+    </div>
+  `).join('');
+}
+
+function sumarCredito(id, cant) {
+  let u = usuarios.find(x => x.id === id);
+  u.creditos += cant;
+  guardarDatos();
+  renderAdmin();
+  alert(`Agregados ${cant} créditos a ${u.username}`);
+}
+
+function toggleBan(id) {
+  let u = usuarios.find(x => x.id === id);
+  u.baneado =!u.baneado;
+  guardarDatos();
+  renderAdmin();
+}
+
+function borrarUsuario(id) {
+  if (!confirm('Seguro que querés borrar este perfil?')) return;
+  usuarios = usuarios.filter(x => x.id!== id);
+  guardarDatos();
+  renderAdmin();
+}
+
+// ===== UI =====
+function cambiarTab(tab, e) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById('tab-buscar').classList.toggle('hidden', tab!=='buscar');
+  document.getElementById('tab-perfil').classList.toggle('hidden', tab!=='perfil');
+}
+
+function cerrarSesion() {
+  sesion = null;
+  localStorage.removeItem('chamba_sesion');
+  location.reload();
+}
+
+function actualizarUsuario() {
+  let idx = usuarios.findIndex(u => u.id === sesion.id);
+  usuarios[idx] = sesion;
+  guardarDatos();
+}
+
+function guardarDatos() {
+  localStorage.setItem('chamba_usuarios', JSON.stringify(usuarios));
+  localStorage.setItem('chamba_sesion', JSON.stringify(sesion));
+}
+</script>
+</body>
+</html>
